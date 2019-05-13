@@ -1,0 +1,16 @@
+version: "3.4"
+
+services:
+  redis:
+    image: redis:latest
+    container_name: redis
+    ports:
+      - "6379:6379"
+
+  urllookup:
+    image: urllookup:latest
+    container_name: urllookup
+    ports:
+      - "8080:8080"
+    depends_on:
+      - redis

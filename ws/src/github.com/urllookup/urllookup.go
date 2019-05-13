@@ -21,7 +21,7 @@ import (
  */
 func RedisNewClient() (*redis.Client,error) {
 	client := redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
+		Addr:     "172.17.0.1:6379",
 		Password: "", // no password set
 		DB:       0,  // use default DB
 	})
@@ -30,6 +30,10 @@ func RedisNewClient() (*redis.Client,error) {
 	pong, err := client.Ping().Result()
 	if err != nil {
 		fmt.Println(pong, err)
+		fmt.Println("Failed Connection to REDIS ")
+
+	} else {
+		fmt.Println("Connection to REDIS Successful")
 	}
 	return client,err
 }
@@ -79,7 +83,8 @@ func main() {
 		case "GET":
 			// Expect "/{url}/ . Extract just the url string
 			lookupUrl := strings.Split(req.URL.Path,"/")[1]
-			fmt.Fprintf(w, "URL : %s Status : %s", req.URL,
+			fmt.Printf("Received GET request for url %s", lookupUrl)
+			fmt.Fprintf(w, "{URL : %s, Status : %s}", req.URL,
 				RedisClientGet(redisClient,lookupUrl))
 
 		case "POST":
@@ -93,7 +98,7 @@ func main() {
 			if status != "ALLOW" && status != "BLOCK" {
 				fmt.Fprintf(w, "Invalid URL status %s NOT updated", status)
 			} else {
-				fmt.Fprintf(w, "URL status updated r.PostFrom = %v\n",
+				fmt.Fprintf(w, "URL status updated = %v\n",
 					req.PostForm)
 				RedisClientSet(redisClient, url, status)
 			}
@@ -101,7 +106,7 @@ func main() {
 	})
 
 	//Start http server listening on port 8080
-	http.ListenAndServe(":8080", nil)
+	http.ListenAndServe("0.0.0.0:8080", nil)
 
 }
 
