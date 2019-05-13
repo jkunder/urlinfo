@@ -10,26 +10,77 @@ package main
 
 import (
 	"fmt"
+	"github.com/go-redis/redis"
 	"net/http"
 	"strings"
 )
 
+/*
+ * Create a new redis client
+ * Assume the redis server is running on local host
+ */
+func RedisNewClient() (*redis.Client,error) {
+	client := redis.NewClient(&redis.Options{
+		Addr:     "localhost:6379",
+		Password: "", // no password set
+		DB:       0,  // use default DB
+	})
+
+	//Verify connection
+	pong, err := client.Ping().Result()
+	if err != nil {
+		fmt.Println(pong, err)
+	}
+	return client,err
+}
+
+/*
+ * Set Key - Value
+ * Inputs : Redis Client Handle, Key, Value
+ */
+func RedisClientSet(client *redis.Client, key string, value string) {
+	err := client.Set(key, value, 0).Err()
+	if err != nil {
+		panic(err)
+	}
+}
+
+/*
+ * Given a Key, read the corresponding Value
+ * If key is not found, return "UNKNOWN" string.
+ *
+ * Inputs : Redis Client handle, key
+ * Return Value.
+ */
+func RedisClientGet(client *redis.Client, key string) string {
+	val, err := client.Get(key).Result()
+
+	if err == redis.Nil {
+		//fmt.Println(key," does not exist")
+		val = "NOT FOUND"
+	} else if err != nil {
+		panic(err)
+	}
+	return val
+}
+
 
 func main() {
-	// Map to store the url status
-	var urlstatus = make(map[string]string)
+	// Create Redis Client Handle
+	redisClient,err := RedisNewClient()
+	if err != nil {
+		return
+	}
+
 
 	http.HandleFunc("/", func (w http.ResponseWriter, req *http.Request) {
 
 		switch req.Method {
 		case "GET":
+			// Expect "/{url}/ . Extract just the url string
 			lookupUrl := strings.Split(req.URL.Path,"/")[1]
-			returnStatus, ok := urlstatus[lookupUrl]
-			if ok == false {
-				returnStatus  = "UNKNOWN"
-			}
 			fmt.Fprintf(w, "URL : %s Status : %s", req.URL,
-				returnStatus)
+				RedisClientGet(redisClient,lookupUrl))
 
 		case "POST":
 			// Call ParseForm() to parse the raw query and update r.PostForm and r.Form.
@@ -37,11 +88,15 @@ func main() {
 				fmt.Fprintf(w, "ParseForm() err: %v", err)
 				return
 			}
-			fmt.Fprintf(w, "URL status updated r.PostFrom = %v\n",
-				req.PostForm)
 			url := req.FormValue("url")
-			rating := req.FormValue("status")
-			urlstatus[url]=rating
+			status := req.FormValue("status")
+			if status != "ALLOW" && status != "BLOCK" {
+				fmt.Fprintf(w, "Invalid URL status %s NOT updated", status)
+			} else {
+				fmt.Fprintf(w, "URL status updated r.PostFrom = %v\n",
+					req.PostForm)
+				RedisClientSet(redisClient, url, status)
+			}
 		}
 	})
 
